@@ -1,15 +1,27 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 
+const API_BASE = '/api';
+
 const Home = () => {
-    // Mock Data for Premium Cards
-    const fruits = [
-        { id: 1, name: 'Apel Fuji', condition: 'Sehat', status: 'Fresh', confidence: 98, date: '2 mins ago', image: 'https://images.unsplash.com/photo-1568702846914-96b305d2aaeb?auto=format&fit=crop&w=800&q=80', statusColor: 'bg-green-100 text-green-700 border-green-200' },
-        { id: 2, name: 'Pisang', condition: 'Matang', status: 'Ripe', confidence: 92, date: '1 hour ago', image: 'https://images.unsplash.com/photo-1528825871115-3581a5387919?auto=format&fit=crop&w=800&q=80', statusColor: 'bg-yellow-100 text-yellow-700 border-yellow-200' },
-        { id: 3, name: 'Jeruk', condition: 'Busuk', status: 'Rotten', confidence: 85, date: 'Yesterday', image: 'https://images.unsplash.com/photo-1611080626919-7cf5a9dbab5b?auto=format&fit=crop&w=800&q=80', statusColor: 'bg-red-100 text-red-700 border-red-200' },
-        { id: 4, name: 'Anggur', condition: 'Sehat', status: 'Fresh', confidence: 95, date: '2 days ago', image: 'https://images.unsplash.com/photo-1596363505729-4190a9506133?auto=format&fit=crop&w=800&q=80', statusColor: 'bg-green-100 text-green-700 border-green-200' },
-    ];
+    const [fruits, setFruits] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+
+    useEffect(() => {
+        fetch(`${API_BASE}/fruits`)
+            .then((res) => {
+                if (!res.ok) throw new Error(res.statusText || `HTTP ${res.status}`);
+                return res.json();
+            })
+            .then((data) => setFruits(Array.isArray(data) ? data : []))
+            .catch((err) => {
+                setError(err?.message || 'Gagal memuat data. Pastikan backend berjalan di port 8080.');
+                setFruits([]);
+            })
+            .finally(() => setLoading(false));
+    }, []);
 
     return (
         <div className="bg-gray-50 min-h-screen font-sans">
@@ -76,13 +88,25 @@ const Home = () => {
 
                 {/* Grid Layout for Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    {fruits.map((fruit, index) => (
+                    {loading && (
+                        <div className="col-span-full text-center py-12 text-gray-500">
+                            <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                            Memuat data...
+                        </div>
+                    )}
+                    {!loading && error && (
+                        <div className="col-span-full text-center py-12 px-4 bg-red-50 rounded-xl border border-red-100">
+                            <p className="text-red-600 font-medium mb-2">{error}</p>
+                            <p className="text-sm text-gray-500">Jalankan backend dengan: go run .</p>
+                        </div>
+                    )}
+                    {!loading && !error && (fruits || []).map((fruit) => (
                         <div
                             key={fruit.id}
                             className="bg-white rounded-2xl p-4 shadow-sm hover:shadow-xl transition-all duration-300 border border-gray-100 group"
                         >
                             <div className="relative mb-4 overflow-hidden rounded-xl">
-                                <img src={fruit.image} alt={fruit.name} className="w-full h-48 object-cover transform group-hover:scale-110 transition duration-500" />
+                                <img src={fruit.image || fruit.imagePath || 'https://images.unsplash.com/photo-1568702846914-96b305d2aaeb?w=800'} alt={fruit.name || 'Buah'} className="w-full h-48 object-cover transform group-hover:scale-110 transition duration-500" onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1568702846914-96b305d2aaeb?w=800'; }} />
                                 <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-lg text-xs font-bold text-gray-700 shadow-sm flex items-center gap-1">
                                     <i className="bi bi-clock"></i> {fruit.date}
                                 </div>
@@ -93,8 +117,8 @@ const Home = () => {
                                     <h3 className="font-bold text-lg text-gray-800 group-hover:text-blue-600 transition">{fruit.name}</h3>
                                     <p className="text-gray-500 text-sm">{fruit.condition}</p>
                                 </div>
-                                <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border ${fruit.statusColor}`}>
-                                    {fruit.status}
+                                <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border ${fruit.statusColor || 'bg-gray-100 text-gray-700 border-gray-200'}`}>
+                                    {fruit.status || '-'}
                                 </span>
                             </div>
 
@@ -105,7 +129,7 @@ const Home = () => {
                         </div>
                     ))}
 
-                    {/* Add New Card Placeholder */}
+                    {/* Add New Card Placeholder - selalu tampil */}
                     <Link
                         to="/add"
                         className="bg-gray-50 rounded-2xl p-4 border-2 border-dashed border-gray-200 hover:border-blue-400 hover:bg-blue-50 transition flex flex-col items-center justify-center text-center group cursor-pointer no-underline min-h-[300px]"

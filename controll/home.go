@@ -1,28 +1,13 @@
 package controll
 
 import (
-	"fmt"
-	"html/template"
 	"net/http"
-	"path/filepath"
 )
 
-func Home(w http.ResponseWriter,r *http.Request){
-	fp := filepath.Join("view","home.html")
-	t,err := template.ParseFiles(fp)
-	if err != nil{
-		fmt.Println(err.Error())
-		return
-	}
-	t.Execute(w,nil)
+func Home(w http.ResponseWriter, r *http.Request) {
+	http.Redirect(w, r, "http://localhost:5173", http.StatusSeeOther)
 }
 
-func Add(w http.ResponseWriter,r *http.Request){
-	fp := filepath.Join("view","addfood.html")
-	t,err := template.ParseFiles(fp)
-	if err != nil{
-		fmt.Println(err.Error())
-		return
-	}
-	t.Execute(w,nil)
+func Add(w http.ResponseWriter, r *http.Request) {
+	http.Redirect(w, r, "http://localhost:5173/add", http.StatusSeeOther)
 }

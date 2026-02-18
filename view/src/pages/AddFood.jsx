@@ -2,9 +2,13 @@ import React, { useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 
+const API_BASE = '/api';
+
 const AddFood = () => {
-    const [mode, setMode] = useState('upload'); // 'upload' or 'camera'
+    const [mode, setMode] = useState('upload');
     const [selectedImage, setSelectedImage] = useState(null);
+    const [selectedFile, setSelectedFile] = useState(null); // File object untuk upload
+    const [imageBase64, setImageBase64] = useState(null);   // Base64 untuk camera
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [analysisResult, setAnalysisResult] = useState(null);
     const [cameraActive, setCameraActive] = useState(false);
@@ -14,8 +18,9 @@ const AddFood = () => {
     const handleFileChange = (e) => {
         const file = e.target.files[0];
         if (file) {
-            const imageUrl = URL.createObjectURL(file);
-            setSelectedImage(imageUrl);
+            setSelectedImage(URL.createObjectURL(file));
+            setSelectedFile(file);
+            setImageBase64(null);
             setAnalysisResult(null);
         }
     };
@@ -24,6 +29,8 @@ const AddFood = () => {
         setMode('camera');
         setCameraActive(true);
         setSelectedImage(null);
+        setSelectedFile(null);
+        setImageBase64(null);
         setAnalysisResult(null);
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ video: true });
@@ -56,37 +63,63 @@ const AddFood = () => {
 
             const imageUrl = canvasRef.current.toDataURL('image/jpeg');
             setSelectedImage(imageUrl);
+            setImageBase64(imageUrl);
+            setSelectedFile(null);
             stopCamera();
         }
     };
 
     const handleReset = () => {
         setSelectedImage(null);
+        setSelectedFile(null);
+        setImageBase64(null);
         setAnalysisResult(null);
         stopCamera();
         setMode('upload');
     };
 
-    const handleAnalyze = (e) => {
+    const handleAnalyze = async (e) => {
         e.preventDefault();
         if (!selectedImage) {
-            alert("Please select or capture an image first.");
+            alert("Silakan pilih atau ambil gambar terlebih dahulu.");
             return;
         }
 
         setIsAnalyzing(true);
-        // Simulate analysis delay
-        setTimeout(() => {
+        setAnalysisResult(null);
+
+        try {
+            let res;
+            if (selectedFile) {
+                const formData = new FormData();
+                formData.append('image', selectedFile);
+                res = await fetch(`${API_BASE}/analyze`, {
+                    method: 'POST',
+                    body: formData,
+                });
+            } else if (imageBase64) {
+                res = await fetch(`${API_BASE}/analyze`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image: imageBase64 }),
+                });
+            } else {
+                alert("Data gambar tidak valid.");
+                setIsAnalyzing(false);
+                return;
+            }
+
+            if (!res.ok) {
+                const err = await res.text();
+                throw new Error(err || 'Gagal menganalisis');
+            }
+            const data = await res.json();
+            setAnalysisResult(data);
+        } catch (err) {
+            alert(err.message || 'Terjadi kesalahan. Pastikan backend berjalan di port 8080.');
+        } finally {
             setIsAnalyzing(false);
-            // Mock result with more details
-            const mockResults = [
-                { status: 'Fresh', confidence: 98, color: 'text-green-600', bg: 'bg-green-50', border: 'border-green-200', icon: 'bi-check-circle-fill', description: 'This fruit is in excellent condition.' },
-                { status: 'Rotten', confidence: 85, color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-200', icon: 'bi-x-circle-fill', description: 'Signs of decay detected. Not recommended for consumption.' },
-                { status: 'Ripe', confidence: 92, color: 'text-yellow-600', bg: 'bg-yellow-50', border: 'border-yellow-200', icon: 'bi-exclamation-circle-fill', description: 'Perfectly ripe and ready to eat soon.' }
-            ];
-            const randomResult = mockResults[Math.floor(Math.random() * mockResults.length)];
-            setAnalysisResult(randomResult);
-        }, 2000);
+        }
     };
 
     return (
@@ -138,9 +171,9 @@ const AddFood = () => {
                                     <div className="relative w-full h-full min-h-[400px] flex items-center justify-center bg-black/90">
                                         <img src={selectedImage} alt="Selected" className="max-h-[500px] max-w-full object-contain shadow-2xl" />
                                         <div className="absolute top-4 right-4 flex gap-2">
-                                            <button
+                                                <button
                                                 type="button"
-                                                onClick={() => { setSelectedImage(null); setAnalysisResult(null); }}
+                                                onClick={() => { setSelectedImage(null); setSelectedFile(null); setImageBase64(null); setAnalysisResult(null); }}
                                                 className="bg-white/10 backdrop-blur-md hover:bg-white/20 text-white p-3 rounded-full transition shadow-lg border border-white/20"
                                                 title="Remove Image"
                                             >
@@ -212,7 +245,7 @@ const AddFood = () => {
                             {/* Premium Result Card */}
                             {analysisResult && !isAnalyzing && (
                                 <div className={`mt-8 rounded-3xl p-1 bg-gradient-to-br ${analysisResult.status === 'Fresh' ? 'from-green-400 to-emerald-600' : analysisResult.status === 'Rotten' ? 'from-red-400 to-pink-600' : 'from-yellow-400 to-orange-500'}`}>
-                                    <div className="bg-white rounded-[22px] p-6md:p-8 overflow-hidden relative">
+                                    <div className="bg-white rounded-[22px] p-6 md:p-8 overflow-hidden relative">
                                         <div className="flex flex-col md:flex-row gap-6 items-center">
                                             {/* Icon/Badge */}
                                             <div className={`w-24 h-24 rounded-full flex items-center justify-center flex-shrink-0 ${analysisResult.bg}`}>

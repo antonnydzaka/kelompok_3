@@ -2,61 +2,68 @@ package database
 
 import (
 	"database/sql"
-	"os"
+	"log"
 
 	_ "github.com/go-sql-driver/mysql"
-	_ "modernc.org/sqlite"	
 )
 
 func Init() *sql.DB {
-	// Cek env - kalau DB_DSN di-set (MySQL), pakai itu. Kalau tidak, pakai SQLite (tanpa install apa pun)
-	dsn := os.Getenv("DB_DSN")
-	if dsn != "" {
-		db, err := sql.Open("mysql", dsn)
-		if err == nil && db.Ping() == nil {
-			initMySQL(db)
-			return db
-		}
-	}
-
-	// Default: SQLite - file lokal, tidak perlu MySQL
-	dbPath := "fruits.db"
-	db, err := sql.Open("sqlite", dbPath)
+	// 1. Connect ke MySQL server tanpa spesifik database untuk membuat database-nya terlebih dahulu
+	// Format DSN MySQL: user:password@tcp(host:port)/dbname?parseTime=true
+	// Menggunakan root tanpa password (default XAMPP/WAMP)
+	serverDsn := "root:@tcp(127.0.0.1:3306)/kelompok3?parseTime=true"
+	log.Println("Menghubungkan ke MySQL server untuk inisialisasi...")
+	
+	serverDb, err := sql.Open("mysql", serverDsn)
 	if err != nil {
-		panic(err)
+		log.Fatal("Gagal membuka koneksi ke MySQL server:", err)
 	}
+
+	// Tes koneksi ke server MySQL
+	if err := serverDb.Ping(); err != nil {
+		log.Fatal("Gagal terhubung ke MySQL server! Pastikan MySQL (misal XAMPP) sudah berjalan. Error:", err)
+	}
+
+	// 2. Buat database `fruits_db` jika belum ada
+	_, err = serverDb.Exec("CREATE DATABASE IF NOT EXISTS fruits_db")
+	if err != nil {
+		log.Fatal("Gagal membuat database fruits_db:", err)
+	}
+	
+	// Tutup koneksi serverDb karena kita butuh koneksi spesifik ke fruits_db
+	serverDb.Close()
+
+	// 3. Menghubungkan ke database `fruits_db`
+	log.Println("Database siap, menghubungkan ke fruits_db...")
+	dbDsn := "root:@tcp(127.0.0.1:3306)/fruits_db?parseTime=true"
+	db, err := sql.Open("mysql", dbDsn)
+	if err != nil {
+		log.Fatal("Gagal membuka koneksi ke database fruits_db:", err)
+	}
+
 	if err := db.Ping(); err != nil {
-		panic(err)
+		log.Fatal("Gagal terhubung ke database fruits_db:", err)
 	}
-	db.SetMaxOpenConns(1) // SQLite single-writer
-	initSQLite(db)
-	return db
-}
 
-func initMySQL(db *sql.DB) {
-	q := `CREATE TABLE IF NOT EXISTS fruits (
+	// 4. Buat tabel jika belum ada
+	createTableQuery := `
+	CREATE TABLE IF NOT EXISTS fruits (
 		id INT AUTO_INCREMENT PRIMARY KEY,
-		name VARCHAR(100) NOT NULL,
-		condition_status VARCHAR(50) NOT NULL,
-		status VARCHAR(50) NOT NULL,
-		confidence INT NOT NULL,
+		name VARCHAR(255),
+		condition_status VARCHAR(50),
+		status VARCHAR(50),
+		confidence INT,
 		description TEXT,
-		image_path VARCHAR(500),
+		image_path VARCHAR(255),
 		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-	)`
-	db.Exec(q)
-}
+	);`
 
-func initSQLite(db *sql.DB) {
-	q := `CREATE TABLE IF NOT EXISTS fruits (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		name VARCHAR(100) NOT NULL,
-		condition_status VARCHAR(50) NOT NULL,
-		status VARCHAR(50) NOT NULL,
-		confidence INTEGER NOT NULL,
-		description TEXT,
-		image_path VARCHAR(500),
-		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-	)`
-	db.Exec(q)
+	_, err = db.Exec(createTableQuery)
+	if err != nil {
+		log.Fatal("Gagal membuat tabel fruits:", err)
+	}
+
+	log.Println("Berhasil terhubung ke MySQL dan inisialisasi tabel fruits selesai.")
+
+	return db
 }
